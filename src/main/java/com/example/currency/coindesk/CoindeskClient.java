@@ -27,7 +27,7 @@ public class CoindeskClient {
 
     /**
      * 【規格實作2｜呼叫來源】以GET取得coindesk.url設定的原始JSON，供原始及轉換API使用。
-     * 正常執行及live測試會真正連線；mock測試由MockRestServiceServer攔截此HTTP請求。
+     * 正常執行及live測試會真正連線至設定的來源。
      * 逾時、上游錯誤及無有效JSON時回傳502，屬補充錯誤處理約定。
      */
     public JsonNode fetch() {
@@ -40,10 +40,5 @@ public class CoindeskClient {
         } catch (RestClientException exception) {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "Unable to retrieve upstream JSON");
         }
-    }
-
-    // Package-visible access allows MockRestServiceServer to exercise the actual HTTP client.
-    RestTemplate restTemplate() {
-        return restTemplate;
     }
 }

@@ -1,20 +1,20 @@
 # Currency API
 
-本機可檢查的 Java8 REST API 範例。使用 Maven、Spring Boot 2.7.18、Spring Data JPA 及 H2，提供幣別中文名稱 CRUD、指定來源 JSON 查詢與匯率資料轉換。此目錄不含原始題目附件或題目原文。
+Java8 REST API 專案。使用 Maven、Spring Boot 2.7.18、Spring Data JPA 及 H2，提供幣別中文名稱 CRUD、指定來源 JSON 查詢與匯率資料轉換。此目錄不含原始題目附件或題目原文。
 
 ## 執行與驗證
 
 需要 JDK8、Maven 3.5+。Spring Boot 2.7.18 的 Java8 相容性見 [官方文件](https://docs.spring.io/spring-boot/docs/2.7.18/reference/html/getting-started.html#getting-started.system-requirements)。
 
 ```powershell
-# JAVA_HOME 必須指向 JDK8；預設即執行全部8個核心測試，必須能連線至指定來源
+# JAVA_HOME 必須指向 JDK8；預設執行全部10個測試，必須能連線至指定來源
 mvn test
 
-# 清除舊編譯產物後再執行相同8個測試
+# 清除舊編譯產物後再執行相同10個測試
 mvn clean test
 ```
 
-兩個來源API測試會真正呼叫 `https://kengp3.github.io/blog/coindesk.json`。沒有額外profile或mock替代；網路或上游失敗會使測試失敗，不跳過必需項目。
+`LiveApiTest` 的兩個測試會真正呼叫 `https://kengp3.github.io/blog/coindesk.json`，網路或上游失敗會使測試失敗。其餘測試不需外部連線；`CoindeskApiIntegrationTest` 以受控Client來源驗證Controller、轉換器、Service與H2/JPA的串接。
 
 如需啟動服務，另執行 `mvn package` 與 `java -Dfile.encoding=UTF-8 -jar target/currency-api-1.0.0.jar`。正常啟動預設為8080，可用 `--server.port=18085` 更改。
 
@@ -84,22 +84,24 @@ PUT `/api/currencies/JPY` body：
 
 | 驗收項目 | 實作／測試 |
 |---|---|
-| Maven、JDK8、Spring Boot、H2、JPA | `pom.xml`、配置；以實際JDK8編譯及執行8個核心測試 |
+| Maven、JDK8、Spring Boot、H2、JPA | `pom.xml`、配置；以實際JDK8編譯及執行10個測試 |
 | 建表與初始化 SQL | `schema.sql`、`data.sql`；Spring測試context啟動時執行 |
 | 要求1：轉換邏輯單元測試 | `RateConverterTest.convertsTimeChineseNamesAndExactDecimalRates`：以兩筆受控JSON及自訂名稱驗證正確時間換算/格式、代碼/名稱對照及來源匯率保留，不要求排序 |
-| 要求2：全部查詢API與內容 | `ApiIntegrationTest.queryAllCurrenciesApi`：呼叫GET清單一次，印出pretty JSON，驗證非空陣列與每筆代碼、中文名稱格式，不限定固定名稱、筆數或排序 |
+| 要求2：全部查詢API與內容 | `ApiIntegrationTest.queryAllCurrenciesApi`：呼叫GET清單一次，印出pretty JSON，驗證本次SQL fixture的完整三筆代碼與名稱，不限定排序 |
 | 要求2：單筆查詢API與內容 | `ApiIntegrationTest.queryCurrencyApi`：只呼叫GET一次，驗證本次查詢代碼與SQL fixture名稱，不限定全表筆數/排序 |
-| 要求2：新增API與內容 | `ApiIntegrationTest.createCurrencyApi`：只呼叫POST一次，新增JPY並驗證201、Location及空body |
-| 要求2：修改API與內容 | `ApiIntegrationTest.updateCurrencyApi`：只呼叫PUT一次，修改EUR並驗證204空body |
-| 要求2：刪除API與內容 | `ApiIntegrationTest.deleteCurrencyApi`：只呼叫DELETE一次，刪除SQL初始化的USD並驗證204空回應 |
+| 要求2：新增API與內容 | `ApiIntegrationTest.createCurrencyApi`：POST一次，驗證201、Location與空body，透過JPA確認JPY與中文名稱已保存 |
+| 要求2：修改API與內容 | `ApiIntegrationTest.updateCurrencyApi`：PUT一次，驗證204空body，透過JPA確認EUR名稱由歐元更新為歐幣 |
+| 要求2：刪除API與內容 | `ApiIntegrationTest.deleteCurrencyApi`：DELETE一次，驗證204空body，透過JPA確認原有USD已不存在 |
 | 要求3：原始來源與內容 | `LiveApiTest.rawApiActuallyCallsSpecifiedRemoteUrl`：直接呼叫 `CoindeskClient.fetch()` 一次，印出JSON；驗證三個時間欄位的有效格式、disclaimer/chartName非空，以及每筆幣別的code/symbol/rate/description/rate_float型別、值與格式，不限定當下代碼/筆數/匯率值 |
 | 要求4：轉換API與內容 | `LiveApiTest.convertedApiActuallyCallsSpecifiedRemoteUrl`：呼叫轉換API一次，確認HTTP 200，並印出response body |
+| 原始API路由與串接 | `CoindeskApiIntegrationTest.rawApiReturnsClientJson`：使用受控Client來源，驗證GET路由、Client呼叫與完整JSON回傳 |
+| 轉換API路由與串接 | `CoindeskApiIntegrationTest.convertedApiUsesClientDataAndDatabaseNames`：使用非UTC時間與自訂匯率、修改H2中文名稱，驗證API的UTC時間、即時名稱與精確匯率 |
 
-目前共8個 `@Test`：1個純單元、5個獨立CRUD API（含全部與單筆查詢）、1個真實來源Client、1個真實來源轉換API。CRUD與轉換API測試透過MockMvc執行真實Controller/Service，原始來源測試直接呼叫 `CoindeskClient.fetch()` 並印出JSON；資料庫使用測試專用的臨時H2記憶體資料庫，透過JPA存取。API測試只以pretty JSON印出response body，MockMvc回應以UTF-8解碼；新增成功回傳201，修改與刪除成功回傳204，皆為空body，因此印出空行。
+目前共10個 `@Test`：1個轉換器單元、5個CRUD API、2個受控來源API串接、2個真實來源測試。所有Controller端點都有API測試。API測試只以pretty JSON印出response body，MockMvc回應以UTF-8解碼；新增成功回傳201，修改與刪除成功回傳204，皆為空body，因此印出空行。
 
-測試輸入及預期值是用來證明規格行為的fixture，並非規格限定的幣別或匯率。converter單元測試以非UTC時間、兩筆自訂匯率與中文對照驗證正確換算、名稱查表及數值保留。原始來源Client測試檢查回應欄位型別、非空值與格式；轉換API測試呼叫API、確認HTTP 200並顯示內容。正確換算與數值保留由受控單元測試驗證。
+固定預期值都有對應的受控輸入：全部查詢測試的三筆名稱與筆數來自本次SQL fixture；單元與受控來源串接測試的時間、名稱與匯率來自測試自行提供的資料。它們驗證輸入到輸出的正確行為，並非業務硬編碼或限制真實上游資料。真實來源測試不固定當下匯率、筆數或陣列位置。
 
-CRUD使用MockMvc呼叫及驗證目標API，並印出response body，沒有JdbcTemplate/JDBC準備或斷言。API測試透過 `@TestPropertySource` 載入 `src/test/resources/test-database.properties`，覆寫應用程式的資料庫設定；每個案例使用不同名稱的H2記憶體資料庫，重新執行 `schema.sql`、`data.sql`。`@DirtiesContext(AFTER_EACH_TEST_METHOD)` 在案例結束後關閉Spring context與連線池，`DB_CLOSE_DELAY=0` 讓資料庫隨最後一條連線關閉而銷毀。下一個案例從乾淨的初始資料開始，不依賴測試順序；轉換器的純單元測試不啟動資料庫。
+CRUD每案只呼叫一次目標API，並以JPA repository讀回資料驗證已提交的寫入效果，沒有JdbcTemplate或直接JDBC。受控來源串接測試只替換外部Client，業務與資料庫皆實際執行。API測試透過 `@TestPropertySource` 載入 `src/test/resources/test-database.properties`；每案使用不同名稱的H2記憶體資料庫，重新執行 `schema.sql`、`data.sql`。`@DirtiesContext(AFTER_EACH_TEST_METHOD)` 在案例結束後關閉Spring context與連線池，`DB_CLOSE_DELAY=0` 讓資料庫隨最後一條連線關閉而銷毀。下一個案例從乾淨的初始資料開始；轉換器單元測試不啟動資料庫。
 
 CRUD可各自單獨執行，不需網路：
 
@@ -109,6 +111,12 @@ mvn '-Dtest=ApiIntegrationTest#queryCurrencyApi' test
 mvn '-Dtest=ApiIntegrationTest#createCurrencyApi' test
 mvn '-Dtest=ApiIntegrationTest#updateCurrencyApi' test
 mvn '-Dtest=ApiIntegrationTest#deleteCurrencyApi' test
+```
+
+不需網路的單元、CRUD及受控來源串接測試也可一起執行（共8項）：
+
+```powershell
+mvn '-Dtest=RateConverterTest,ApiIntegrationTest,CoindeskApiIntegrationTest' test
 ```
 
 執行 `mvn clean test` 可在終端機查看測試結果與 API response body，JUnit XML 報告產生於 `target/surefire-reports/`。單案執行會更新對應的報告。
