@@ -2,17 +2,25 @@ package com.example.currency.coindesk;
 
 import com.example.currency.currency.Currency;
 import com.example.currency.currency.CurrencyRepository;
+import com.example.currency.error.ApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -77,6 +85,64 @@ class CoindeskApiIntegrationTest {
                 .containsExactlyInAnyOrder(
                         tuple("USD", "資料庫測試美元", new BigDecimal("31.123456789")),
                         tuple("EUR", "歐元", new BigDecimal("52.234567891")));
+        verify(client).fetch();
+    }
+
+    @ParameterizedTest(name = "upstream failure at {0}")
+    @ValueSource(strings = {"/api/coindesk", "/api/coindesk/converted"})
+    void upstreamFailureReturnsBadGateway(String path) throws Exception {
+        when(client.fetch()).thenThrow(new ApiException(HttpStatus.BAD_GATEWAY, "Unable to retrieve upstream JSON"));
+        expectBadGateway(path, "Unable to retrieve upstream JSON");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidConversionSources")
+    void invalidSourceReturnsBadGateway(String scenario, String sourceJson) throws Exception {
+        when(client.fetch()).thenReturn(sourceJson == null ? null : mapper.readTree(sourceJson));
+        expectBadGateway("/api/coindesk/converted", "Upstream JSON cannot be converted");
+    }
+
+    private static Stream<Arguments> invalidConversionSources() {
+        String time = "\"time\":{\"updatedISO\":\"2024-09-02T15:07:20+08:00\"}";
+        String bpi = "\"bpi\":{\"USD\":{\"code\":\"USD\",\"rate_float\":31.1}}";
+        Stream<Arguments> structural = Stream.of(
+                Arguments.of("null source", (String) null),
+                Arguments.of("JSON null source", "null"),
+                Arguments.of("array source", "[]"),
+                Arguments.of("missing time", "{" + bpi + "}"),
+                Arguments.of("missing ISO time", "{\"time\":{}," + bpi + "}"),
+                Arguments.of("nontextual ISO time", "{\"time\":{\"updatedISO\":123}," + bpi + "}"),
+                Arguments.of("empty ISO time", "{\"time\":{\"updatedISO\":\"\"}," + bpi + "}"),
+                Arguments.of("malformed ISO time", "{\"time\":{\"updatedISO\":\"invalid\"}," + bpi + "}"),
+                Arguments.of("impossible date", "{\"time\":{\"updatedISO\":\"2024-02-30T15:07:20Z\"}," + bpi + "}"),
+                Arguments.of("time without offset", "{\"time\":{\"updatedISO\":\"2024-09-02T15:07:20\"}," + bpi + "}"),
+                Arguments.of("missing bpi", "{" + time + "}"),
+                Arguments.of("empty bpi", "{" + time + ",\"bpi\":{}}"),
+                Arguments.of("array bpi", "{" + time + ",\"bpi\":[]}"),
+                Arguments.of("null bpi", "{" + time + ",\"bpi\":null}"));
+        Stream<Arguments> currencies = Stream.of(
+                Arguments.of("missing currency code", "{\"rate_float\":31.1}"),
+                Arguments.of("lowercase currency code", "{\"code\":\"usd\",\"rate_float\":31.1}"),
+                Arguments.of("code differs from key", "{\"code\":\"EUR\",\"rate_float\":31.1}"),
+                Arguments.of("nonobject currency", "null"),
+                Arguments.of("missing rate", "{\"code\":\"USD\"}"),
+                Arguments.of("wrong rate type", "{\"code\":\"USD\",\"rate_float\":\"31.1\",\"rate\":123}"),
+                Arguments.of("nonnumeric fallback rate", "{\"code\":\"USD\",\"rate\":\"invalid\"}"),
+                Arguments.of("empty fallback rate", "{\"code\":\"USD\",\"rate\":\"\"}"),
+                Arguments.of("negative numeric rate", "{\"code\":\"USD\",\"rate_float\":-1.25}"),
+                Arguments.of("negative fallback rate", "{\"code\":\"USD\",\"rate\":\"-1.25\"}"))
+                .map(args -> Arguments.of(args.get()[0], "{" + time + ",\"bpi\":{\"USD\":" + args.get()[1] + "}}"));
+        return Stream.concat(structural, currencies);
+    }
+
+    private void expectBadGateway(String path, String message) throws Exception {
+        mvc.perform(get(path))
+                .andDo(result -> System.out.println(mapper.readTree(
+                        result.getResponse().getContentAsString(StandardCharsets.UTF_8)).toPrettyString()))
+                .andExpect(status().isBadGateway())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(502))
+                .andExpect(jsonPath("$.message").value(message));
         verify(client).fetch();
     }
 
