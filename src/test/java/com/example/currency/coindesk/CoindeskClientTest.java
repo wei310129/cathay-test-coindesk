@@ -22,7 +22,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-/** 以受控HTTP回應測試真實Client的錯誤處理，不連外、不啟動Spring或資料庫。 */
+/** 【測試要求3｜失敗測試】以受控HTTP回應補充Client錯誤處理測試，不連外、不啟動Spring或資料庫。 */
 class CoindeskClientTest {
     private static final String URL = "https://upstream.example/coindesk.json";
     private CoindeskClient client;
@@ -35,6 +35,7 @@ class CoindeskClientTest {
         server = customizer.getServer();
     }
 
+    /** 【測試要求3｜失敗測試】上游回傳4xx或5xx時，Client轉成502例外。 */
     @ParameterizedTest(name = "upstream HTTP {0}")
     @ValueSource(ints = {400, 404, 500, 503})
     void rejectsUpstreamHttpErrors(int status) {
@@ -43,6 +44,7 @@ class CoindeskClientTest {
         expectBadGateway("Unable to retrieve upstream JSON");
     }
 
+    /** 【測試要求3｜失敗測試】上游body為空或JSON不是物件時，Client轉成502例外。 */
     @ParameterizedTest(name = "{0}")
     @MethodSource("invalidJsonRoots")
     void rejectsEmptyOrNonobjectJson(String scenario, String body) {
@@ -61,6 +63,7 @@ class CoindeskClientTest {
                 Arguments.of("JSON boolean", "true"));
     }
 
+    /** 【測試要求3｜失敗測試】上游JSON破損或回傳非JSON內容時，Client轉成502例外。 */
     @ParameterizedTest(name = "{0}")
     @MethodSource("unreadableResponses")
     void rejectsUnreadableResponses(String scenario, String body, MediaType contentType) {
@@ -75,6 +78,7 @@ class CoindeskClientTest {
                 Arguments.of("HTML instead of JSON", "<html>upstream error</html>", MediaType.TEXT_HTML));
     }
 
+    /** 【測試要求3｜失敗測試】模擬連線失敗、連線逾時與讀取逾時，確認Client轉成502例外。 */
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {"connection refused", "connect timeout", "read timeout"})
     void convertsTransportFailuresToBadGateway(String scenario) {

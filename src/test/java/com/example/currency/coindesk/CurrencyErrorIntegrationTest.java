@@ -28,7 +28,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/** 錯誤回應與寫入保護：每個參數案例都重建臨時H2，並確認原資料沒有變動。 */
+/** 【測試要求2｜失敗測試】幣別CRUD錯誤回應與寫入保護；每案重建臨時H2並確認原資料沒有變動。 */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestPropertySource("classpath:test-database.properties")
@@ -41,6 +41,7 @@ class CurrencyErrorIntegrationTest {
     @Autowired private ObjectMapper mapper;
     @SpyBean private CurrencyRepository repository;
 
+    /** 【測試要求2｜失敗測試｜新增】代碼或中文名稱不合法時回傳400，且不新增資料。 */
     @ParameterizedTest(name = "{0}")
     @MethodSource("invalidCreateBodies")
     void rejectsInvalidCreateRequests(String scenario, String body) throws Exception {
@@ -65,6 +66,7 @@ class CurrencyErrorIntegrationTest {
                         + longName() + "\"}"));
     }
 
+    /** 【測試要求2｜失敗測試｜修改】中文名稱缺少、空白或過長時回傳400，且保留原名稱。 */
     @ParameterizedTest(name = "{0}")
     @MethodSource("invalidUpdateBodies")
     void rejectsInvalidUpdateRequests(String scenario, String body) throws Exception {
@@ -81,6 +83,7 @@ class CurrencyErrorIntegrationTest {
                 Arguments.of("name exceeds 64 characters", "{\"chineseName\":\"" + longName() + "\"}"));
     }
 
+    /** 【測試要求2｜失敗測試｜查詢/修改/刪除】路徑幣別代碼不合法時回傳400。 */
     @ParameterizedTest(name = "{0} with code {1}")
     @MethodSource("invalidPathCodes")
     void rejectsInvalidPathCodes(String method, String code) throws Exception {
@@ -96,6 +99,7 @@ class CurrencyErrorIntegrationTest {
                 Stream.of("usd", "US", "USDD", "U1D").map(code -> Arguments.of(method, code)));
     }
 
+    /** 【測試要求2｜失敗測試｜新增/修改】body缺少、JSON破損或型別錯誤時回傳400。 */
     @ParameterizedTest(name = "{0}: {1}")
     @MethodSource("unreadableBodies")
     void rejectsUnreadableBodies(String method, String scenario, String body) throws Exception {
@@ -115,6 +119,7 @@ class CurrencyErrorIntegrationTest {
                 Arguments.of("PUT", "array instead of name", "{\"chineseName\":[]}")));
     }
 
+    /** 【測試要求2｜失敗測試｜查詢/修改/刪除】目標幣別不存在時回傳404，且不變動資料。 */
     @ParameterizedTest(name = "{0} for nonexistent currency")
     @ValueSource(strings = {"GET", "PUT", "DELETE"})
     void rejectsNonexistentCurrency(String method) throws Exception {
@@ -125,6 +130,7 @@ class CurrencyErrorIntegrationTest {
         expectError(call, 404, "Currency not found: JPY");
     }
 
+    /** 【測試要求2｜失敗測試｜新增】重複幣別回傳409，且不能覆蓋既有中文名稱。 */
     @Test
     void duplicateCreateDoesNotOverwriteExistingCurrency() throws Exception {
         expectError(post("/api/currencies").contentType(MediaType.APPLICATION_JSON)
@@ -132,6 +138,7 @@ class CurrencyErrorIntegrationTest {
                 409, "Currency already exists: USD");
     }
 
+    /** 【測試要求2｜失敗測試｜新增】查重結果過時而撞到主鍵時回傳409，且交易回滾保留原資料。 */
     @Test
     void databaseDuplicateAfterStaleExistenceCheckReturnsConflict() throws Exception {
         // 模擬查重時尚未看見另一筆寫入；insert/persist、主鍵約束及交易回滾仍實際執行。

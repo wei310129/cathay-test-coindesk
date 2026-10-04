@@ -32,7 +32,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * 受控來源的API串接測試：只替換外部Client，Controller、轉換器、Service與JPA/H2都實際執行。
+ * 【測試要求3、4】原始及轉換API的受控來源串接測試，包含正常與失敗測試。
+ * 只替換外部Client，Controller、轉換器、Service與JPA/H2都實際執行。
  * 每個案例重建臨時H2；測試fixture的時間、匯率與名稱是可驗證的輸入，不限制真實上游資料。
  */
 @SpringBootTest
@@ -45,7 +46,7 @@ class CoindeskApiIntegrationTest {
     @Autowired private CurrencyRepository repository;
     @MockBean private CoindeskClient client;
 
-    /** 驗證原始API路由確實呼叫Client，並完整保留Client回傳的JSON。 */
+    /** 【測試要求3】驗證原始API路由確實呼叫Client，並完整保留Client回傳的JSON。 */
     @Test
     void rawApiReturnsClientJson() throws Exception {
         JsonNode source = sourceFixture();
@@ -60,7 +61,7 @@ class CoindeskApiIntegrationTest {
         verify(client).fetch();
     }
 
-    /** 驗證轉換API串接受控來源及資料庫中的即時名稱，正確輸出UTC時間和精確匯率。 */
+    /** 【測試要求4】驗證轉換API串接受控來源及資料庫中的即時名稱，正確輸出UTC時間和精確匯率。 */
     @Test
     void convertedApiUsesClientDataAndDatabaseNames() throws Exception {
         JsonNode source = sourceFixture();
@@ -88,6 +89,7 @@ class CoindeskApiIntegrationTest {
         verify(client).fetch();
     }
 
+    /** 【測試要求3、4｜失敗測試】上游呼叫失敗時，原始及轉換API回傳一致的502 JSON。 */
     @ParameterizedTest(name = "upstream failure at {0}")
     @ValueSource(strings = {"/api/coindesk", "/api/coindesk/converted"})
     void upstreamFailureReturnsBadGateway(String path) throws Exception {
@@ -95,6 +97,7 @@ class CoindeskApiIntegrationTest {
         expectBadGateway(path, "Unable to retrieve upstream JSON");
     }
 
+    /** 【測試要求4｜失敗測試】來源結構、時間、幣別代碼或匯率無效時，轉換API回傳502 JSON。 */
     @ParameterizedTest(name = "{0}")
     @MethodSource("invalidConversionSources")
     void invalidSourceReturnsBadGateway(String scenario, String sourceJson) throws Exception {
