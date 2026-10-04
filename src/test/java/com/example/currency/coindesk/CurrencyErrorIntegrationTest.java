@@ -41,7 +41,7 @@ class CurrencyErrorIntegrationTest {
     @Autowired private ObjectMapper mapper;
     @SpyBean private CurrencyRepository repository;
 
-    /** 【測試要求2｜失敗測試｜新增】代碼或中文名稱不合法時回傳400，且不新增資料。 */
+    /** 【測試要求2｜失敗測試｜新增】必要參數code/chineseName缺少、null、空字串、全空白或格式不合法時回傳400，且不新增資料。 */
     @ParameterizedTest(name = "{0}")
     @MethodSource("invalidCreateBodies")
     void rejectsInvalidCreateRequests(String scenario, String body) throws Exception {
@@ -53,7 +53,8 @@ class CurrencyErrorIntegrationTest {
         return Stream.of(
                 Arguments.of("missing code", "{\"chineseName\":\"日圓\"}"),
                 Arguments.of("null code", "{\"code\":null,\"chineseName\":\"日圓\"}"),
-                Arguments.of("blank code", "{\"code\":\"\",\"chineseName\":\"日圓\"}"),
+                Arguments.of("empty code", "{\"code\":\"\",\"chineseName\":\"日圓\"}"),
+                Arguments.of("whitespace code", "{\"code\":\"   \",\"chineseName\":\"日圓\"}"),
                 Arguments.of("lowercase code", "{\"code\":\"jpy\",\"chineseName\":\"日圓\"}"),
                 Arguments.of("short code", "{\"code\":\"JP\",\"chineseName\":\"日圓\"}"),
                 Arguments.of("long code", "{\"code\":\"JPYY\",\"chineseName\":\"日圓\"}"),

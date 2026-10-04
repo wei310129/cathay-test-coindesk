@@ -7,10 +7,10 @@ Java8 REST API 專案。使用 Maven、Spring Boot 2.7.18、Spring Data JPA 及 
 需要 JDK8、Maven 3.5+。Spring Boot 2.7.18 的 Java8 相容性見 [官方文件](https://docs.spring.io/spring-boot/docs/2.7.18/reference/html/getting-started.html#getting-started.system-requirements)。
 
 ```powershell
-# JAVA_HOME 必須指向 JDK8；預設執行全部95個測試案例，必須能連線至指定來源
+# JAVA_HOME 必須指向 JDK8；預設執行全部96個測試案例，必須能連線至指定來源
 mvn test
 
-# 清除舊編譯產物後再執行相同95個測試案例
+# 清除舊編譯產物後再執行相同96個測試案例
 mvn clean test
 ```
 
@@ -20,7 +20,7 @@ mvn clean test
 
 ## API
 
-請求與有內容的回應使用 JSON；新增、修改、刪除成功時不回傳 body，以 HTTP 狀態碼表示成功。幣別代碼為三個大寫英文字母，中文名稱必填、最多 64 字元；名稱會去除前後空白。每次查詢按代碼排序。
+請求與有內容的回應使用 JSON；新增、修改、刪除成功時不回傳 body，以 HTTP 狀態碼表示成功。新增的必要參數為`code`與`chineseName`，任一缺少、null、空字串或全空白皆回傳400。幣別代碼為三個大寫英文字母，中文名稱最多 64 字元；名稱會去除前後空白。每次查詢按代碼排序。
 
 | 方法 | 路徑 | 用途 | 成功 |
 |---|---|---|---|
@@ -84,7 +84,7 @@ PUT `/api/currencies/JPY` body：
 
 | 驗收項目 | 實作／測試 |
 |---|---|
-| Maven、JDK8、Spring Boot、H2、JPA | `pom.xml`、配置；以實際JDK8編譯及執行95個測試案例 |
+| Maven、JDK8、Spring Boot、H2、JPA | `pom.xml`、配置；以實際JDK8編譯及執行測試 |
 | 建表與初始化 SQL | `schema.sql`、`data.sql`；Spring測試context啟動時執行 |
 | 要求1：轉換邏輯單元測試 | `RateConverterTest.convertsTimeChineseNamesAndExactDecimalRates`：以兩筆受控JSON及自訂名稱驗證正確時間換算/格式、代碼/名稱對照及來源匯率保留，不要求排序 |
 | 要求2：全部查詢API與內容 | `ApiIntegrationTest.queryAllCurrenciesApi`：呼叫GET清單一次，印出pretty JSON，驗證本次SQL fixture的完整三筆代碼與名稱，不限定排序 |
@@ -100,7 +100,7 @@ PUT `/api/currencies/JPY` body：
 | 上游HTTP與傳輸錯誤 | `CoindeskClientTest`：以受控HTTP回應驗證4xx/5xx、空body、非物件JSON、破損JSON、非JSON內容、連線失敗及逾時皆轉成502例外 |
 | 轉換與上游例外的API回應 | `CoindeskApiIntegrationTest`：原始/轉換API傳遞上游502；缺少欄位、無效時間、無效幣別代碼、缺少/無效/負匯率等轉換失敗回傳一致的502 JSON |
 
-目前共95個測試案例（含參數化測試展開）：1個轉換器單元、5個CRUD正常API、44個CRUD錯誤API、15個Client錯誤、28個受控來源API串接、2個真實來源測試。所有Controller端點都有API測試，應用程式明確處理的400/404/409/502錯誤分支也有對應案例。API測試只以pretty JSON印出response body，MockMvc回應以UTF-8解碼；新增成功回傳201，修改與刪除成功回傳204，皆為空body，因此印出空行。
+目前共96個測試案例（含參數化測試展開）：1個轉換器單元、5個CRUD正常API、45個CRUD錯誤API、15個Client錯誤、28個受控來源API串接、2個真實來源測試。所有Controller端點都有API測試，應用程式明確處理的400/404/409/502錯誤分支也有對應案例。API測試只以pretty JSON印出response body，MockMvc回應以UTF-8解碼；新增成功回傳201，修改與刪除成功回傳204，皆為空body，因此印出空行。
 
 固定預期值都有對應的受控輸入：全部查詢測試的三筆名稱與筆數來自本次SQL fixture；單元與受控來源串接測試的時間、名稱與匯率來自測試自行提供的資料。它們驗證輸入到輸出的正確行為，並非業務硬編碼或限制真實上游資料。真實來源測試不固定當下匯率、筆數或陣列位置。
 
@@ -120,7 +120,7 @@ mvn '-Dtest=ApiIntegrationTest#updateCurrencyApi' test
 mvn '-Dtest=ApiIntegrationTest#deleteCurrencyApi' test
 ```
 
-不需網路的單元、CRUD、Client及受控來源串接測試也可一起執行（共93項）：
+不需網路的單元、CRUD、Client及受控來源串接測試也可一起執行（共94項）：
 
 ```powershell
 mvn '-Dtest=RateConverterTest,ApiIntegrationTest,CurrencyErrorIntegrationTest,CoindeskClientTest,CoindeskApiIntegrationTest' test
