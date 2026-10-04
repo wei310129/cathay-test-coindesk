@@ -1,0 +1,34 @@
+# Maven build output and generated backup files
+/target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+
+# IDE settings and output
+/.idea/
+*.iml
+/.vscode/
+/.classpath
+/.project
+/.settings/
+/out/
+/bin/
+
+# Local runtime files and environment settings
+*.log
+/.local/
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Operating system and editor temporary files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*~
+*.swp
+*.swo
